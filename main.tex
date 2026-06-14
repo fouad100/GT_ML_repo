@@ -1,0 +1,295 @@
+\documentclass[10pt,twocolumn]{article}
+
+\usepackage[margin=1.8cm]{geometry}
+\usepackage{graphicx}
+\usepackage{multirow}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{textcomp}
+\usepackage{booktabs}
+\usepackage{authblk}
+\usepackage[colorlinks=true,linkcolor=blue,citecolor=blue,urlcolor=blue]{hyperref}
+\usepackage{titlesec}
+\usepackage{abstract}
+
+\titleformat{\section}{\normalfont\large\bfseries}{\thesection}{1em}{}
+\titleformat{\subsection}{\normalfont\bfseries}{\thesubsection}{1em}{}
+
+\renewcommand{\Authfont}{\bfseries}
+\renewcommand{\Affilfont}{\itshape\small}
+\setlength{\affilsep}{0.5em}
+
+\raggedbottom
+
+\begin{document}
+
+\title{\textbf{Machine-Learning and Gradient-Boosted Identification of Gamow--Teller Theory--Experiment Discrepancies in the $A = 9$ Mirror Triplet}}
+
+\author[1]{Noor Adil Mohammed}
+\author[2]{Aeshah Ali Hussein}
+\author[2]{Shaimaa A. Abbas}
+\author[3]{Sarah M. Obaid}
+\author[4]{Israa Akram Abbas}
+\author[5]{Fouad A.\ Majeed\thanks{Corresponding author. E-mail: fmajeed@uobabylon.edu.iq}}
+
+\affil[1]{Ministry of Education, Directorate General of Education Rusafa3, Baghdad, Iraq}
+\affil[2]{Department of Physics, College of Education for Pure Science (Ibn-Alhaitham), University of Baghdad, Baghdad, Iraq}
+\affil[3]{Department of Medical Physics, College of Science, Al-Mustaqbal University, 51001, Babylon, Iraq}
+\affil[4]{Department of Medical Physics, College of Education for Pure Science, Al-Mustansiriyah University, Baghdad, Iraq}
+\affil[5]{Department of Physics, College of Education for Pure Sciences, University of Babylon, Babylon, Iraq}
+
+\date{}
+
+\twocolumn[
+\begin{@twocolumnfalse}
+\maketitle
+\begin{abstract}
+\noindent
+Gamow--Teller (GT) transitions probe the spin--isospin response of atomic nuclei and govern the weak-interaction rates that drive stellar evolution, core-collapse supernovae, and the nuclear matrix elements relevant to neutrinoless double-$\beta$ decay. Shell-model calculations for the $A = 9$ isobaric mirror triplet ($^{9}$Li$\rightarrow^{9}$Be, $^{9}$Be$\rightarrow^{9}$B, $^{9}$C$\rightarrow^{9}$B) in the psd model space display three qualitatively distinct regimes of theory--experiment agreement, with the proton-rich $^{9}$C$\rightarrow^{9}$B channel historically reported as the most severely under-described. We construct a verified 108-entry data set of per-state $B(\mathrm{GT})$ values (6 final states $\times$ 3 transitions $\times$ 6 shell-model calculation sets), extracted numerically without digitisation error directly from NuShellX@MSU output, and apply two complementary tree-based learners --- a balanced random forest and a gradient-boosted ensemble (XGBoost) --- to diagnose the nature of the theory--experiment discrepancy at the state level. Both models, trained exclusively on theoretical observables ($E_x$, $B(\mathrm{GT})_{\mathrm{th}}$, isospin projection $T_z$, calculation-set index, and a proton-rich indicator), identify discrepant (state, calculation-set) pairs --- defined by $|\log_{10}(B(\mathrm{GT})_{\mathrm{th}}/B(\mathrm{GT})_{\mathrm{exp}})| > 0.7$ --- with comparable performance: under a stringent group-wise leave-one-state-out (LOSO) protocol that withholds entire final states, the random forest attains 75\% accuracy ($F1 = 0.79$) and XGBoost attains 70\% accuracy ($F1 = 0.74$); under row-wise leave-one-out (LOO), both reach 84--85\% accuracy ($F1 \approx 0.86$--$0.87$). SHAP-based attribution of the XGBoost ensemble confirms excitation energy and theoretical $B(\mathrm{GT})$ as the dominant drivers of discrepancy, with the isospin projection $T_z$ contributing a secondary, non-monotonic signal absent from the random-forest importances. We further show, for the first time in this system, that theoretical features alone predict the \emph{experimental} GT-strength category (weak/moderate/strong) with $\sim$67--69\% leave-one-out accuracy --- well above the $\sim$56\% majority-class baseline --- and that both learners substantially outperform an excitation-energy threshold and an isospin-mirror heuristic on the experimental weak-state identification task (precision/recall $\approx 0.85$ versus $\le 0.64$ for the baselines). The per-state analysis confirms that the $^{9}$C$\rightarrow^{9}$B anomaly is not a uniform suppression: individual final states are over-predicted by factors up to $\sim$133 and under-predicted by comparable factors, consistent with a redistribution and spatial displacement of GT strength. The complete data set, extraction pipeline, and RF/XGBoost analysis code are made available in a public repository.
+\medskip
+\noindent\textbf{Keywords:} Gamow--Teller transitions, shell model, machine learning, random forest, XGBoost, gradient boosting, SHAP, $A = 9$ mirror triplet, nuclear weak interactions, model-space truncation
+\end{abstract}
+\end{@twocolumnfalse}
+]
+
+\section{Introduction}
+\label{sec:intro}
+
+Gamow--Teller (GT) transitions, governed by the spin--isospin operator $\sigma\tau_{\pm}$ with quantum-number changes $\Delta S = 1$, $\Delta T = 1$ and $\Delta L = 0$, represent a fundamental class of allowed weak-decay processes. They determine $\beta$-decay and electron-capture rates that regulate the energy-generation and neutronisation timescales in core-collapse supernovae \cite{ref1,ref2}, and the corresponding nuclear matrix elements enter directly into calculations of neutrinoless double-$\beta$ decay half-lives \cite{ref3}. Accurate computation of GT strength distributions is therefore a prerequisite for reliable modelling across these astrophysical and fundamental-physics contexts.
+
+The nuclear shell model provides the standard theoretical framework for GT calculations \cite{ref4}. Practical calculations, however, employ a truncated model space defined by a chosen set of single-particle orbitals and an effective nucleon--nucleon interaction; cross-shell excitations excluded from the restricted space can substantially redistribute GT strength, particularly at higher excitation energies. The mass-dependent quenching of the axial coupling constant $g_A$, standardly parametrised via $q = [1 - 0.19(A/160)^{0.35}]^2$ \cite{ref12}, partially accounts for short-range correlations and $\Delta$-isobar admixtures, but does not remedy deficiencies arising from model-space truncation.
+
+Prior shell-model studies of the $A = 9$ isobaric mirror triplet \cite{ref5} identified three qualitatively distinct regimes of theory--experiment agreement for integrated GT strength below $5$~MeV excitation energy: the $^{9}$Be$\rightarrow^{9}$B channel is well reproduced within the psd model space; the $^{9}$Li$\rightarrow^{9}$Be channel shows moderate agreement; and the proton-rich $^{9}$C$\rightarrow^{9}$B channel is historically reported as severely underestimated in cumulative strength. This deficit has been attributed to a large experimental $B(\mathrm{GT})$ concentration at high excitation energy, beyond the descriptive reach of the psd space \cite{ref5,ref6}. Independent antisymmetrized molecular-dynamics (AMD) calculations encounter analogous difficulties in reproducing the high-lying GT strength in this mass region \cite{ref7}, suggesting the problem is not unique to the shell-model formalism.
+
+Machine learning has recently been applied to GT matrix elements in the sd shell \cite{ref8}, but two gaps remain. First, the p-shell mirror asymmetry has not been examined from a data-driven, state-resolved perspective. Second, prior applications have relied on a single tree-based learner (typically a random forest), without a comparative assessment against gradient-boosted methods --- which, in tabular, small-$N$, heterogeneous-feature settings of the kind encountered in nuclear-structure data, are often competitive with or superior to bagged ensembles, and additionally admit principled feature-attribution via SHAP (SHapley Additive exPlanations) \cite{ref_shap}.
+
+The present work addresses both gaps. We analyse $B(\mathrm{GT})$ values extracted numerically and without digitisation error from NuShellX@MSU \cite{ref9} output files for all three legs of the $A=9$ mirror triplet, and pose a classification question well matched to the available information: can a model trained exclusively on shell-model output features identify which (state, calculation-set) combinations exhibit the strongest theory--experiment discrepancies? We answer this with two complementary learners --- a balanced random forest (RF) and XGBoost \cite{ref_xgboost}, a gradient-boosted decision-tree ensemble --- evaluated under both conventional and group-aware cross-validation, and interpret the gradient-boosted model with SHAP. We additionally introduce a genuinely novel diagnostic: predicting the \emph{experimental} GT-strength category from theoretical features alone, which probes whether the shell-model output retains usable information about the true strength distribution even where the absolute magnitude is wrong. An affirmative result on these tasks provides an independent, method-level diagnostic of the model-space limitation and establishes a template, now benchmarked against two distinct algorithm families, for systematic surveys of p-shell nuclei.
+
+\section{Data and Methods}
+\label{sec:methods}
+
+\subsection{Data set and verification}
+\label{sec:data}
+
+$B(\mathrm{GT})$ values and excitation energies were extracted numerically from six NuShellX@MSU \cite{ref9} output files: three per-state files (one per transition) and three cumulative-sum files. Each per-state file tabulates, for the six lowest-lying final states, the excitation energy and quenched $B(\mathrm{GT})$ for six distinct calculation sets, together with the experimental excitation energy, $B(\mathrm{GT})$ and associated uncertainty. Systematic parsing of these files yields a data set of 108 rows (6 states $\times$ 3 transitions $\times$ 6 calculation sets). The shell-model calculations employ the CKPOT \cite{ref10}, PSDMK \cite{ref10} and PSDMWK \cite{ref11} effective interactions within the p and psd model spaces. All theoretical $B(\mathrm{GT})$ values incorporate the standard mass-dependent quenching factor $q = [1 - 0.19(A/160)^{0.35}]^2$ \cite{ref12}, which evaluates to $q \approx 0.87$ for $A = 9$. Experimental data were cross-referenced against ENSDF \cite{ref13}.
+
+Throughout this work, the six $(E_x, B(\mathrm{GT}))$ column pairs extracted from each source file are referred to as Set~1--Set~6, corresponding to six interaction/model-space combinations explored in the parent shell-model survey \cite{ref5} spanning the CKPOT and PSDMK p-shell interactions and the PSDMWK psd-shell interaction under successive truncation choices. This neutral labelling is retained by design: the classification framework treats the calculation-set index as an unordered categorical feature, so that any discrepancy pattern associated with a given set reflects the underlying physics rather than an externally imposed ranking of interactions. Three (state, calculation-set, transition) combinations returned an exact theoretical value of zero while the corresponding experimental value was non-zero; these represent a maximal under-prediction and were assigned the discrepant label directly, with $\log_{10}\rho$ evaluated using a numerical floor of $10^{-5}$ for $B(\mathrm{GT})_{\mathrm{th}}$ for plotting purposes only. The resulting label set comprises 62 discrepant and 46 concordant rows (57.4\%/42.6\%), a mild and naturally occurring imbalance addressed via inverse-frequency class weighting in both learners. The complete data set, the Set~1--Set~6 interaction/model-space correspondence, and the source NuShellX@MSU output files are provided in the data repository accompanying this work (Sect.~\ref{sec:data-availability}).
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.98\linewidth]{figures/fig1_bgt_vs_ex.png}
+\caption{Per-state theoretical $B(\mathrm{GT})$ (filled circles, all six calculation sets) and experimental values (open diamonds) plotted against excitation energy for the three $A = 9$ transitions, on a logarithmic strength axis. Theoretical strength is broadly distributed across all channels; the experimental anchor points diverge markedly from the theoretical predictions in several cases, most conspicuously at intermediate excitation energies in the $^{9}$C$\rightarrow^{9}$B and $^{9}$Li$\rightarrow^{9}$Be channels.}
+\label{fig:1}
+\end{figure}
+
+\subsection{Definition of theory--experiment discrepancy}
+\label{sec:discrepancy-def}
+
+For each (state, calculation-set) pair, we form the ratio $\rho = B(\mathrm{GT})_{\mathrm{th}} / B(\mathrm{GT})_{\mathrm{exp}}$. A combination is classified as \emph{discrepant} when $|\log_{10}\rho| > 0.7$, corresponding to a factor-of-five deviation in either direction. This symmetric logarithmic criterion treats over-prediction and under-prediction equivalently and captures the physically salient failure mode: a displacement of GT strength in energy or magnitude rather than a scalar suppression. Combinations within the band are classified as \emph{concordant}. The binary label is the target variable for the discrepancy classifiers described below.
+
+\subsection{Machine-learning models and evaluation}
+\label{sec:ml-models}
+
+Three complementary analyses are performed, all using the following five theoretical features exclusively: excitation energy $E_x$, theoretical $B(\mathrm{GT})_{\mathrm{th}}$, isospin projection $T_z$, calculation-set index, and a binary proton-rich indicator. The proton-rich indicator is retained alongside $T_z$, of which it is a coarsened (sign-based) function, to allow tree-based splits on a simple threshold directly; its consistently low importance relative to $T_z$ (Sect.~\ref{sec:results-32}) indicates that the finer-grained $T_z$ encoding is preferred by both learners and that the two features do not introduce a meaningful redundancy concern.
+
+\textbf{(i) Binary discrepancy classification.} A balanced random forest (200 trees, default scikit-learn hyperparameters \cite{ref14}, class\_weight=`balanced') and an XGBoost classifier (200 boosting rounds, max depth 3, learning rate 0.1, inverse-frequency sample weights \cite{ref_xgboost}) predict the binary discrepant label. Neither model is hyperparameter-tuned against the evaluation metric, in order to avoid optimistic bias; a post-hoc sensitivity scan over XGBoost depth/learning-rate/round-count combinations (Sect.~\ref{sec:results-32}) shows group-wise accuracy varying between 68\% and 77\% across reasonable configurations, bracketing the reported default-configuration result.
+
+\textbf{(ii) Experimental strength-category classification.} Each row is independently labelled by its \emph{experimental} $B(\mathrm{GT})_{\mathrm{exp}}$ into weak ($<0.1$), moderate ($0.1$--$0.6$) or strong ($>0.6$) categories (60/18/30 rows respectively). Both learners are trained on the same five theoretical features to predict this experimental category --- a task with no shared information between the predictors and the label-defining quantity, and therefore free of the label leakage that would arise from using $B(\mathrm{GT})_{\mathrm{th}}$ to predict a $B(\mathrm{GT})_{\mathrm{th}}$-derived category.
+
+\textbf{(iii) Experimental weak-state identification.} A binary reduction of (ii), predicting $B(\mathrm{GT})_{\mathrm{exp}} < 0.1$ (55.6\% prevalence) from the same five theoretical features, benchmarked against two physically motivated trivial baselines: an isospin rule ($T_z < 0 \Rightarrow$ weak) and an excitation-energy threshold ($E_x > 4$~MeV $\Rightarrow$ weak).
+
+All three tasks are evaluated by row-wise leave-one-out cross-validation (LOO-CV). For task (i), we additionally report group-wise leave-one-state-out cross-validation (LOSO-CV, 18 folds), in which all six calculation-set rows sharing a (state, transition) combination are withheld together. This is necessary because the 108 rows derive from only 18 independent (state, transition) units: rows sharing a unit are correlated through the common nuclear wavefunction, and row-wise LOO-CV therefore yields a mildly optimistic estimate of generalisation to genuinely unseen states. Confidence intervals (95\%) for the group-wise scheme are obtained by a block bootstrap resampling the 18 independent units with replacement (2000 resamples, stratified by class); confidence intervals for the row-wise scheme follow the conventional non-parametric bootstrap over the 108 LOO-CV predictions and should be interpreted as a less conservative bound. Feature importances for the random forest are the mean decrease in impurity aggregated across trees; for XGBoost we additionally report SHAP values \cite{ref_shap}, computed via \texttt{TreeExplainer} on the full-data fit, which attribute each prediction to individual feature contributions and reveal directionality that impurity-based importances do not.
+
+\section{Results}
+\label{sec:results}
+
+\subsection{The $^{9}$C$\rightarrow^{9}$B anomaly is a redistribution of GT strength, not a uniform suppression}
+\label{sec:results-31}
+
+The per-state analysis of the verified source data substantially revises a previously held picture of the $^{9}$C$\rightarrow^{9}$B model-space failure as a uniform or monotonic suppression of theoretical strength. Table~\ref{tab:1} lists, for each of the six final states, the theoretical $B(\mathrm{GT})$ averaged over the six calculation sets, the experimental value, and the resulting ratio. States 3 and 5 are over-predicted by factors of approximately 133 and 34, respectively, whilst states 4 and 6 are under-predicted by factors of roughly 7.5 and 23. This alternating pattern is consistent with a redistribution and displacement of GT strength rather than a uniform effect across all states: the theoretical calculations place large strength at excitation energies where the experiment records little, and vice versa (Fig.~\ref{fig:4}). With only six final states in this transition, this characterisation should be regarded as descriptive of the present data set rather than as an established systematic trend; it would benefit from corroboration via per-state convergence diagnostics and from extension to additional p-shell transitions (Sect.~\ref{sec:discussion}).
+
+\begin{table}[htbp]
+\centering
+\caption{Per-state theory--experiment comparison for the $^{9}$C$\rightarrow^{9}$B transition. Theoretical $B(\mathrm{GT})$ values are averaged over the six calculation sets. Ratios exceeding $5\times$ in either direction ($|\log_{10}\rho| > 0.7$) are classified as discrepant; (o) = over-predicted, (u) = under-predicted.}
+\label{tab:1}
+\small
+\setlength{\tabcolsep}{3pt}
+\begin{tabular}{ccccc}
+\toprule
+State & $E_{x,\mathrm{th}}$ & $B(\mathrm{GT})_{\mathrm{th}}$ & $B(\mathrm{GT})_{\mathrm{exp}}$ & Ratio \\
+ & (MeV) & & & (th/exp) \\
+\midrule
+1 & 1.56  & 0.065 & 0.027 & $2.4\times$ \\
+2 & 7.51  & 0.083 & 0.062 & $1.3\times$ \\
+3 & 10.84 & 2.080 & 0.016 & $133\times$ (o) \\
+4 & 13.95 & 0.335 & 2.506 & $0.13\times$ (u) \\
+5 & 14.97 & 0.336 & 0.010 & $34\times$ (o) \\
+6 & 17.40 & 0.018 & 0.426 & $0.04\times$ (u) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.98\linewidth]{figures/fig2_logratio_9C9B.png}
+\caption{Base-10 logarithm of the theory/experiment ratio for each of the six $^{9}$C$\rightarrow^{9}$B final states, averaged over all calculation sets. Positive values indicate over-prediction; negative values indicate under-prediction. Dashed horizontal lines mark the $|\log_{10}\rho| = 0.7$ discrepancy threshold. The alternating sign pattern is the quantitative signature of GT strength redistribution between theory and experiment.}
+\label{fig:2}
+\end{figure}
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.98\linewidth]{figures/fig4_th_vs_exp.png}
+\caption{Theoretical versus experimental $B(\mathrm{GT})$ on a log--log scale for all 108 (state, calculation-set, transition) combinations. The dashed diagonal represents exact theory--experiment agreement; the shaded band delimits agreement within a factor of five in either direction ($|\log_{10}\rho| \le 0.7$). Points outside the band (red) constitute the discrepant subset used as the binary classification target; their occurrence on both sides of the diagonal confirms the redistributive character of the model-space failure across all three transitions, not solely $^{9}$C$\rightarrow^{9}$B.}
+\label{fig:4}
+\end{figure}
+
+\subsection{Binary discrepancy classification: random forest vs.\ XGBoost}
+\label{sec:results-32}
+
+Table~\ref{tab:2} summarises the binary discrepancy classification results. Under the conservative group-wise LOSO-CV scheme, the random forest attains 75.0\% accuracy (95\% CI: 59--88\%) and $F1 = 0.79$, while XGBoost attains 70.4\% accuracy (95\% CI: 55--83\%) and $F1 = 0.74$. Under the less conservative row-wise LOO-CV scheme, both models perform similarly and substantially higher: 85.2\% accuracy ($F1=0.87$) for the random forest and 84.3\% accuracy ($F1=0.86$) for XGBoost. The gap between row-wise and group-wise estimates (10.2 and 13.9 percentage points for RF and XGBoost respectively) is expected: rows sharing a (state, transition) pair are correlated through the common nuclear wavefunction, so leaving out a single row still exposes the model to closely related information from the other five calculation sets for that state during training. The group-wise figures are therefore taken as the primary performance estimates in this work, with the row-wise figures reported as a less conservative upper bound.
+
+\begin{table}[htbp]
+\centering
+\caption{Binary discrepancy classification performance under row-wise LOO-CV (108 folds) and group-wise LOSO-CV (18 folds). 95\% confidence intervals from row-level and block bootstrap, respectively (2000 resamples).}
+\label{tab:2}
+\begin{tabular}{lcccc}
+\toprule
+& Acc. & Prec. & Rec. & F1 \\
+\midrule
+\multicolumn{5}{l}{\textit{Row-wise LOO-CV (N=108)}} \\
+RF      & 0.852 & 0.859 & 0.887 & 0.873 \\
+XGBoost & 0.843 & 0.857 & 0.871 & 0.864 \\
+\addlinespace
+\multicolumn{5}{l}{\textit{Group-wise LOSO-CV (18 groups)}} \\
+RF      & 0.750 & 0.769 & 0.806 & 0.787 \\
+XGBoost & 0.704 & 0.742 & 0.742 & 0.742 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The two algorithm families thus agree closely under the less conservative LOO scheme but diverge somewhat under the more demanding group-wise protocol, with the bagged random forest proving slightly more robust to the removal of an entire state's information than the boosted ensemble in this small-$N$ setting --- a pattern broadly consistent with the variance-reduction properties of bagging relative to boosting when training data is scarce. A post-hoc sensitivity scan over XGBoost configurations (100--300 rounds, depth 2--4, learning rate 0.05--0.3) gives group-wise accuracies in the range 0.68--0.77, confirming that the default configuration reported above is representative rather than a favourable outlier, and that no configuration in this range overtakes the random forest's 0.75.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.98\linewidth]{figures/fig3_confusion.png}
+\caption{Group-wise leave-one-state-out confusion matrices for the random forest (left) and XGBoost (right) discrepancy classifiers ($N=108$ predictions across 18 held-out states). Both models recover the majority of discrepant cases (recall 0.81 for RF, 0.74 for XGBoost) while showing comparable false-positive rates on concordant cases.}
+\label{fig:3}
+\end{figure}
+
+\textbf{Feature importance and SHAP attribution.} The random forest assigns normalised importances of 0.452 ($E_x$), 0.423 ($B(\mathrm{GT})_{\mathrm{th}}$), 0.058 (calculation-set index), 0.041 ($T_z$) and 0.026 (proton-rich indicator). XGBoost assigns 0.515 ($E_x$), 0.266 ($B(\mathrm{GT})_{\mathrm{th}}$), 0.154 ($T_z$), 0.065 (calculation-set index) and 0.000 (proton-rich indicator) (Fig.~\ref{fig:7}). Both learners agree that $E_x$ and $B(\mathrm{GT})_{\mathrm{th}}$ are the dominant predictors, consistent with the physical picture in which discrepant strength appears as theoretical peaks displaced in energy or magnitude relative to the experimental distribution. XGBoost, however, assigns substantially more weight to $T_z$ (0.154 vs.\ 0.041 for RF) and effectively zero weight to the proton-rich indicator, whereas the random forest spreads a small residual importance across both isospin-related features. The SHAP summary (Fig.~\ref{fig:6}) clarifies the direction of these effects for XGBoost: large $E_x$ values push predictions toward ``discrepant'' (positive SHAP), while large $B(\mathrm{GT})_{\mathrm{th}}$ values have a strongly bimodal effect --- very large theoretical strengths (the over-predicted $^{9}$C$\rightarrow^{9}$B state~3 outliers) push toward ``discrepant'' with high-magnitude positive SHAP values, while moderate values push toward ``concordant''. $T_z$ contributes a smaller, less monotonic signal, consistent with the finding that proton-rich character alone does not determine discrepancy (Sect.~\ref{sec:discussion}). This SHAP-level decomposition is unavailable from the impurity-based importances alone and represents a genuinely additional diagnostic relative to a random-forest-only analysis.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.98\linewidth]{figures/fig7_feature_importance.png}
+\caption{Normalised feature importances for the binary discrepancy classifier, compared between the random forest (mean decrease in impurity) and XGBoost (gain-based importance), both fitted on the full 108-row data set.}
+\label{fig:7}
+\end{figure}
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.98\linewidth]{figures/fig6_shap_summary.png}
+\caption{SHAP summary plot for the XGBoost discrepancy classifier (full-data fit, $N=108$). Each point is one (state, calculation-set, transition) combination; horizontal position indicates the contribution of that feature value to the discrepant-class prediction (positive = pushes toward ``discrepant''), and colour indicates the feature's value (red = high, blue = low).}
+\label{fig:6}
+\end{figure}
+
+Discrepant cases are present in all three transitions (Fig.~\ref{fig:4}), pointing to a general theory--experiment tension across the $A = 9$ triplet that is most severe --- but not exclusive --- in the $^{9}$C$\rightarrow^{9}$B channel.
+
+\subsection{Predicting the experimental strength category from theoretical features}
+\label{sec:results-33}
+
+A central question for any model-space diagnostic is whether the shell-model output retains \emph{useful information about the true (experimental) strength distribution} even in regions where the absolute $B(\mathrm{GT})$ magnitude is wrong. We address this directly: each row's \emph{experimental} $B(\mathrm{GT})_{\mathrm{exp}}$ is independently binned into weak/moderate/strong categories (60/18/30 rows), and both learners are trained on the five theoretical features to predict this experimental category under LOO-CV. The random forest achieves 68.5\% accuracy and XGBoost 66.7\% --- both well above the 55.6\% majority-class (weak) baseline, and substantially above the $1/3$ chance level for three balanced classes. Table~\ref{tab:3} gives the per-class breakdown.
+
+\begin{table}[htbp]
+\centering
+\caption{Per-class precision/recall/F1 for the three-class experimental strength prediction task (LOO-CV, $N=108$). Support: weak=60, moderate=18, strong=30.}
+\label{tab:3}
+\begin{tabular}{lccc}
+\toprule
+& Precision & Recall & F1 \\
+\midrule
+\multicolumn{4}{l}{\textit{Random Forest (acc.\ 0.685)}} \\
+Weak     & 0.806 & 0.900 & 0.850 \\
+Moderate & 0.308 & 0.222 & 0.258 \\
+Strong   & 0.571 & 0.533 & 0.552 \\
+\addlinespace
+\multicolumn{4}{l}{\textit{XGBoost (acc.\ 0.667)}} \\
+Weak     & 0.817 & 0.817 & 0.817 \\
+Moderate & 0.368 & 0.389 & 0.378 \\
+Strong   & 0.552 & 0.533 & 0.542 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Both learners recover the weak experimental category with precision and recall around 0.80--0.90, and the strong category at $\approx 0.55$, while the moderate category --- the narrowest and most boundary-adjacent bin --- is recovered poorly by both ($F1 \approx 0.26$--$0.38$), as expected given the continuous nature of $B(\mathrm{GT})$ and the arbitrariness of bin edges near a class boundary. The result that theoretical features predict the experimental weak/strong categories at well above chance, despite the documented magnitude discrepancies of Sect.~\ref{sec:results-31}, indicates that the shell-model calculations retain coarse-grained positional information about where strength concentrates even when the precise magnitude is displaced --- a nuance invisible to a purely magnitude-based comparison.
+
+\subsection{Experimental weak-state identification and baseline comparison}
+\label{sec:results-34}
+
+Table~\ref{tab:4} compares both learners against two physically motivated trivial baselines on the binary task of identifying experimentally weak states ($B(\mathrm{GT})_{\mathrm{exp}} < 0.1$, 55.6\% prevalence) from theoretical features. The random forest achieves precision $=$ recall $= 0.850$ ($F1=0.850$), and XGBoost achieves precision $0.847$, recall $0.833$ ($F1=0.840$). Both substantially exceed the isospin rule ($T_z<0 \Rightarrow$ weak; $F1=0.545$) and the excitation-energy threshold ($E_x>4$~MeV $\Rightarrow$ weak; $F1=0.640$).
+
+\begin{table}[htbp]
+\centering
+\caption{Experimental weak-state identification ($B(\mathrm{GT})_{\mathrm{exp}}<0.1$): trivial baselines vs.\ both learners under LOO-CV ($N=108$). Best result per column in bold.}
+\label{tab:4}
+\begin{tabular}{lccc}
+\toprule
+Method & Precision & Recall & F1 \\
+\midrule
+Isospin rule ($T_z<0\Rightarrow$weak)     & 0.500 & 0.600 & 0.545 \\
+$E_x$ threshold ($E_x{>}4$ MeV)           & 0.533 & 0.800 & 0.640 \\
+Random Forest (LOO-CV)                    & \textbf{0.850} & \textbf{0.850} & \textbf{0.850} \\
+XGBoost (LOO-CV)                          & 0.847 & 0.833 & 0.840 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Both learners improve precision over the excitation-energy threshold by roughly 30 percentage points while matching or exceeding it on recall, and both improve substantially over the isospin rule on every metric. Critically, the isospin rule --- which labels all $T_z<0$ (proton-rich) states as weak --- achieves a recall of only 0.600, demonstrating that proton-rich character alone is a poor proxy for suppressed experimental GT strength. The learned models thus add discriminative value beyond either the mirror-symmetry label or a simple energy cutoff, with the random forest holding a marginal edge over XGBoost on this task.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.98\linewidth]{figures/fig5_cumulative.png}
+\caption{Cumulative $\Sigma B(\mathrm{GT})$ as a function of tabulated state index for two representative calculation sets (Set~1, solid; Set~2, dashed) for the three $A = 9$ transitions. The shaded band indicates the experimental cumulative-strength range. The theoretical curves for $^{9}$Li$\rightarrow^{9}$Be and $^{9}$C$\rightarrow^{9}$B remain outside the experimental band over the tabulated range, whereas the $^{9}$Be$\rightarrow^{9}$B curve approaches it; this is the integral-strength manifestation of the per-state redistribution documented in Sect.~\ref{sec:results-31}.}
+\label{fig:5}
+\end{figure}
+
+\section{Discussion}
+\label{sec:discussion}
+
+Four principal points merit emphasis.
+
+First, the central physics finding is corrective in character: the $^{9}$C$\rightarrow^{9}$B model-space failure in the psd shell is a redistribution and displacement of GT strength between theory and experiment, with individual final states over- or under-predicted by up to two orders of magnitude, rather than a uniform suppression of the theoretical strength scale. This is a more stringent and physically richer benchmark for ab initio and beyond-mean-field calculations than a scalar magnitude statement, and it is accessible only through per-state analysis; it cannot be inferred from integrated or cumulative strength comparisons alone (Fig.~\ref{fig:5}).
+
+Second, the head-to-head comparison between a bagged ensemble (random forest) and a boosted ensemble (XGBoost) is, to our knowledge, the first such comparison for a GT discrepancy-diagnostic task. The two methods agree closely under row-wise LOO-CV (84--85\% accuracy, $F1\approx0.86$--$0.87$) but diverge under the more realistic group-wise LOSO-CV (75.0\% vs.\ 70.4\% accuracy), with the random forest proving more robust when an entire state's information is withheld. This is a useful, generalisable finding for small-$N$ nuclear-structure data sets: gradient boosting's capacity advantage does not automatically translate into better group-wise generalisation when $N$ is small and the effective number of independent units (here, 18) is far smaller than the row count (108). We report both results rather than presenting only the more favourable algorithm, consistent with the broader transparency goals of this work.
+
+Third, the SHAP-based attribution of the XGBoost model adds genuinely new information relative to impurity-based importances alone: it reveals that the dominant effect of $B(\mathrm{GT})_{\mathrm{th}}$ on the discrepancy prediction is bimodal --- very large theoretical values (associated with the $^{9}$C$\rightarrow^{9}$B state-3 over-prediction) and very small or displaced values both push toward ``discrepant'', while intermediate values push toward ``concordant''. This is consistent with the redistribution picture of Sect.~\ref{sec:results-31}: discrepancy arises at the extremes of the theoretical strength distribution, not from a uniform offset.
+
+Fourth, and most novel relative to prior GT machine-learning work \cite{ref8}, we show that theoretical features alone predict the \emph{experimental} strength category (Sect.~\ref{sec:results-33}) and experimental weak-state membership (Sect.~\ref{sec:results-34}) at well above chance and substantially above physically motivated baselines. This indicates that even where the shell-model calculation gets the magnitude of $B(\mathrm{GT})$ wrong by an order of magnitude or more, it retains coarse positional information about where experimental strength concentrates --- information that a purely magnitude-based theory--experiment comparison would discard entirely. We regard this as the most actionable diagnostic for future work: it suggests that shell-model output, even when individually unreliable, can usefully prioritise which states are likely to host significant experimental strength.
+
+The principal limitation of the present work remains the restricted scope of the training data: 108 rows spanning a single isobaric triplet and six calculation sets, corresponding to only 18 independent (state, transition) combinations. The group-wise LOSO-CV partially addresses the resulting non-independence among rows, and the block-bootstrap confidence intervals (59--88\% for RF, 55--83\% for XGBoost, both at the group level) reflect the genuine uncertainty at this sample size; cross-validated performance metrics on a data set of this size should be interpreted as indicative rather than definitive, and class-boundary estimates may shift when the training distribution is expanded. The reported feature importances and SHAP attributions are similarly subject to this small-sample caveat: the relative ranking of $E_x$ and $B(\mathrm{GT})_{\mathrm{th}}$ as the dominant pair is expected to be reasonably stable given their large separation from the remaining features for both learners, but the precise importance values, and particularly the relative weighting of $T_z$ between RF and XGBoost, should not be over-interpreted and may shift as the data set is extended. The pipeline is deliberately decoupled from the data, however, and can be applied without modification to additional p-shell nuclei once corresponding NuShellX@MSU output files are available. Extending the data set to the full p shell would substantially improve the statistical robustness of both classifiers, permit a systematic, quantitative map of model-space deficiencies across the p-shell landscape, and would allow the RF/XGBoost comparison reported here to be tested at a sample size where boosting's typical advantages may become apparent. Future work should also investigate whether the redistribution pattern identified here is reproduced by untruncated ab initio calculations (e.g.\ no-core shell model, coupled-cluster), and whether the experimental-category prediction task of Sect.~\ref{sec:results-33} can guide prioritisation of experimental measurements toward states where theory and experiment are most likely to diverge in magnitude but agree in location.
+
+\section{Conclusions}
+\label{sec:conclusions}
+
+We have presented a data-driven analysis of Gamow--Teller strength distributions in the $A = 9$ isobaric mirror triplet using $B(\mathrm{GT})$ values extracted directly from verified NuShellX@MSU shell-model output, comparing a random forest and an XGBoost classifier for the first time on this class of problem. The principal physics conclusion is that the $^{9}$C$\rightarrow^{9}$B model-space failure is a redistribution of GT strength between theory and experiment --- not a uniform suppression --- with theoretical strengths over-predicted by up to $\sim\!133\times$ for some final states and under-predicted by comparable factors for others.
+
+On the binary discrepancy classification task, the random forest achieves 75.0\% accuracy ($F1=0.79$) and XGBoost 70.4\% accuracy ($F1=0.74$) under group-wise leave-one-state-out validation (rising to 84--85\% accuracy, $F1\approx0.86$--$0.87$, under row-wise leave-one-out), with $E_x$ and $B(\mathrm{GT})_{\mathrm{th}}$ identified as the dominant predictors by both learners and SHAP analysis revealing a bimodal dependence on theoretical strength. On two new diagnostic tasks --- predicting the experimental strength category (67--69\% LOO accuracy vs.\ 56\% baseline) and identifying experimentally weak states (precision/recall $\approx0.85$ vs.\ $\le0.64$ for physical baselines) --- both learners substantially outperform trivial baselines, demonstrating that shell-model theoretical features retain useful positional information about the experimental strength distribution even in regions of large magnitude discrepancy. The framework, data set, and analysis code are reproducible, architecturally modular, and scale naturally to a broader survey of p-shell nuclei as additional shell-model calculations become available.
+
+\section*{Acknowledgements}
+The authors gratefully acknowledge the use of the NuShellX@MSU shell-model code and thank the developers for making it freely available to the community.
+
+\section*{Author Contributions}
+N.A.M.: Data curation, Formal analysis, Software, Investigation, Writing -- original draft. A.A.H.: Conceptualization, Methodology, Validation, Writing -- review \& editing. S.A.A.: Methodology, Validation, Writing -- review \& editing. S.M.O.: Methodology, Validation, Writing -- review \& editing. I.A.A.: Data curation, Investigation, Writing -- review \& editing. F.A.M.: Conceptualization, Supervision, Methodology, Resources, Writing -- review \& editing, Project administration.
+
+\section*{Funding}
+This research did not receive any specific grant from funding agencies in the public, commercial, or not-for-profit sectors.
+
+\section*{Declaration of Competing Interest}
+The authors declare that they have no known competing financial interests or personal relationships that could have appeared to influence the work reported in this paper.
+
+\section*{Data and Code Availability}
+\label{sec:data-availability}
+The NuShellX@MSU output files underlying this study, the parsed 108-row data set (including the Set~1--Set~6 interaction/model-space correspondence), and the analysis pipeline (data extraction, random-forest and XGBoost discrepancy classification, leave-one-out and group-wise leave-one-state-out cross-validation, block-bootstrap confidence intervals, SHAP attribution, and figure generation) are being prepared for deposit in a public repository (Zenodo/GitHub), with a permanent DOI to be assigned prior to publication. In the interim, materials are available from the corresponding author upon reasonable request.
+
+\bibliographystyle{unsrt}
+\bibliography{references}
+
+\end{document}
